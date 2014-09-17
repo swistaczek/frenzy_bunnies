@@ -5,12 +5,13 @@ module FrenzyBunnies::Worker
 
   def ack!
     true
-  end  
+  end
 
   def work
     raise Exception, "Please overwrite this method!"
   end
 
+  # Schedule message delivery
   def run!(header, message)
     case method(:work).arity
     when 2
@@ -22,6 +23,7 @@ module FrenzyBunnies::Worker
     end
   end
 
+  # Inject ClassMethods module
   def self.included(base)
     base.extend ClassMethods
   end
@@ -33,6 +35,7 @@ module FrenzyBunnies::Worker
       @queue_opts = opts
     end
 
+    # Spawn new worker based on existing context
     def start(context)
       @jobs_stats = { failed: Atomic.new(0), passed: Atomic.new(0) }
       @working_since = Time.now
@@ -53,20 +56,38 @@ module FrenzyBunnies::Worker
         @thread_pool = Executors.new_cached_thread_pool
       end
 
-      factory_options = filter_hash(@queue_opts, :exchange_options,
-                                                 :queue_options,
-                                                 :bind_options,
-                                                 :durable,
-                                                 :prefetch)
+      exchange_options = @queue_opts[:exchange_options]
+      bind_options     = @queue_opts[:bind_options]
+      factory_options  = filter_hash(@queue_opts, :queue_options,
+                                                  :durable,
+                                                  :prefetch)
 
+      # Setup once new exchange that routes messages
+      @exchange = context.queue_factory.build_exchange(exchange_options)
+
+      # Create many channels with queues bindings
       @queue_opts[:channels_count].times do |i|
+        # Create new channel and queue
         q = context.queue_factory.build_queue(queue_name, factory_options)
 
+        # Bind queue to shared exchange
+        q.bind(@exchange, bind_options)
+
         @channels[i] = q.subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
+          # Prepare setup args for worker class
+          init_args = case method(:new).arity
+                      when 1
+                        [ { context: context } ]
+                      else
+                        [ ]
+                      end
+
+          # Setup new worker class instance
+          # IDEA: Think about caching working class instance, may be dangerous
           begin
-            wkr = new
+            wkr = new(*init_args)
           rescue => e
-            error "Error while initializing worker #{@queue_name}", e.inspect
+            error "Error while initializing worker #{@queue_name} with args #{init_args.inspect}", e.inspect
             raise e
           end
 
@@ -91,6 +112,8 @@ module FrenzyBunnies::Worker
             incr! :failed
             last_error = ex.backtrace[0..3].join("\n")
             error "[ERROR] #{$!} (#{last_error})", msg
+          ensure
+            wkr = nil # clear existing worker instance
           end
         end
       end
