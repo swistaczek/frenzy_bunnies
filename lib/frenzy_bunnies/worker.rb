@@ -88,9 +88,6 @@ module FrenzyBunnies::Worker
                                                   :durable,
                                                   :prefetch)
 
-      # Setup once new exchange that routes messages
-      @exchange = context.queue_factory.build_exchange(exchange_options)
-
       # Create many channels with queues bindings
       @queue_opts[:channels_count].times do |i|
         # Create new channel and queue
