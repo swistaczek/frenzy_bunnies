@@ -8,6 +8,7 @@ module FrenzyBunnies
       @opts       = opts
       @persistent = @opts[:message_persistent]
 
+      # TODO: Enchance performance, single channel could be a bottle neck, mabey setup pool?
       @publishing_channel = @connection.create_channel
     end
 
