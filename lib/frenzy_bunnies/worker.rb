@@ -82,9 +82,9 @@ module FrenzyBunnies::Worker
         @thread_pool = Executors.new_cached_thread_pool
       end
 
-      exchange_options = @queue_opts[:exchange_options]
-      bind_options     = @queue_opts[:bind_options]
       factory_options  = filter_hash(@queue_opts, :queue_options,
+                                                  :exchange_options,
+                                                  :bind_options,
                                                   :durable,
                                                   :prefetch)
 
@@ -95,9 +95,6 @@ module FrenzyBunnies::Worker
       @queue_opts[:channels_count].times do |i|
         # Create new channel and queue
         q = context.queue_factory.build_queue(queue_name, factory_options)
-
-        # Bind queue to shared exchange
-        q.bind(@exchange, bind_options)
 
         @channels[i] = q.subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
           # Prepare setup args for worker class
