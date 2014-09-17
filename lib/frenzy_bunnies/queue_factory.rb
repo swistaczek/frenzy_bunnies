@@ -31,9 +31,9 @@ class FrenzyBunnies::QueueFactory
   end
 
   # Setup new Channel
-  def build_channel(options)
+  def build_channel(prefetch)
     channel          = @connection.create_channel
-    channel.prefetch = options[:prefetch]
+    channel.prefetch = prefetch
     channel
   end
 
