@@ -3,23 +3,20 @@ module FrenzyBunnies
   class Publisher
     include Helpers::Utils
 
-    def initialize(connection, opts = {})
+    def initialize(connection, opts)
       @connection = connection
       @opts       = opts
-      @mutex      = Mutex.new
+      @persistent = @opts[:message_persistent]
+
+      @publishing_channel = @connection.create_channel
     end
 
     # publish(data, :routing_key => "resize")
-    def publish_to_exchange(msg, exchange_name, routing={})
+    def publish_to_exchange(msg, exchange_name, routing = {})
       if @connection.open?
-        begin
-          # Synchronization required due to creating channel number in safe manner
-          channel = @mutex.synchronize { @connection.create_channel }
-          exchange = MarchHare::Exchange.new(channel, exchange_name, symbolize(@opts[:exchanges][exchange_name]))
-          exchange.publish(msg, routing_key: routing[:routing_key], properties: { persistent: @opts[:message_persistent] })
-        ensure
-          channel.close
-        end
+        # Synchronization required due to creating channel number in safe manner
+        exchange = @publishing_channel.exchange(exchange_name, symbolize(@opts[:exchanges][exchange_name]))
+        exchange.publish(msg, routing_key: routing[:routing_key], properties: { persistent: @persistent })
       else
         raise Exception, 'Could not publish message, connection is closed!'
       end
