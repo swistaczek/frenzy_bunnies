@@ -67,7 +67,8 @@ module FrenzyBunnies::Worker
       @working_since = Time.now
 
       @logger   = context.logger
-      @channels = []
+      @queues   = []
+      @subscriptions = []
 
       queue_name = "#{@queue_name}_#{context.env}"
 
@@ -91,9 +92,9 @@ module FrenzyBunnies::Worker
       # Create many channels with queues bindings
       @queue_opts[:channels_count].times do |i|
         # Create new channel and queue
-        q = context.queue_factory.build_queue(queue_name, factory_options)
+        @queues[i] = context.queue_factory.build_queue(queue_name, factory_options)
 
-        @channels[i] = q.subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
+        @subscriptions[i] = @queues[i].subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
           # Prepare setup args for worker class
           init_args = case method(:new).arity
                       when 1
