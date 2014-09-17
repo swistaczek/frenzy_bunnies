@@ -16,7 +16,7 @@ module FrenzyBunnies
   # DEPRECATED: Remove in next version
   def self.publish(msg, exchange_name, routing)
     if @context
-      @context.logger.warn "[DEPRECATED] FrenzyBunnies.publish is deprecated! Use #publish in worker instaed."
+      @context.logger.warn "[DEPRECATED] FrenzyBunnies.publish is deprecated! Use #publish_msg_to_exchange in worker instaed."
       @context.queue_publisher.publish_to_exchange(msg, exchange_name, routing)
     else
       raise Exception, "Could not find active context, call #configure first!"
