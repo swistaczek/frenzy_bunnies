@@ -69,6 +69,7 @@ module FrenzyBunnies::Worker
       @logger   = context.logger
       @queues   = []
       @subscriptions = []
+      @init_arity    = allocate.method(:initialize).arity
 
       queue_name = "#{@queue_name}_#{context.env}"
 
