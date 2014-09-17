@@ -1,12 +1,38 @@
+# encoding: utf-8
 require 'atomic'
 
 module FrenzyBunnies::Worker
   import java.util.concurrent.Executors
 
+  # Initialize with context
+  def initialize(opts = {})
+    @context = opts[:context]
+  end
+
+  # Return current worker context if present
+  def context
+    if defined?(@context)
+      @context
+    else
+      raise Exception, "Context not defined. Please supply #initialize constructor with 1 argument (Hash)!"
+    end
+  end
+
+  # Publish message to given exchange, simple proxy to FrenzyBunnies::Publisher
+  def publish_msg_to_exchange(*args)
+    if @context
+      @context.queue_publisher.publish_to_exchange(*args)
+    else
+      raise Exception, "Could not find active context, call #configure first!"
+    end
+  end
+
+  # Stub for setting message as succesffuly processed
   def ack!
     true
   end
 
+  # Mock for proper method
   def work
     raise Exception, "Please overwrite this method!"
   end
@@ -123,6 +149,7 @@ module FrenzyBunnies::Worker
       say "spawned #{@queue_opts[:channels_count]} channels, workers up."
     end
 
+    # Shutdown pool
     def stop
       say "stopping"
       @thread_pool.shutdown_now
@@ -131,18 +158,22 @@ module FrenzyBunnies::Worker
       say "stopped"
     end
 
+    # Return shared queue opts
     def queue_opts
       @queue_opts
     end
 
+    # Return jobs stats for web interface
     def jobs_stats
       Hash[ @jobs_stats.map{ |k,v| [k, v.value] } ].merge({ since: @working_since.to_i, thread_pool_size: @thread_pool.getPoolSize })
     end
 
+    # Throw tagged note to logs
     def say(text)
       @logger.info "[#{self.name}] #{text}"
     end
 
+    # Throw tagged error to logs
     def error(text, msg)
       @logger.error "[#{self.name}] #{text} <#{msg}>"
     end

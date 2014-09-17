@@ -15,11 +15,17 @@ class FrenzyBunnies::QueueFactory
     validate_options(options)
 
     # Setup new Channel
-    channel          = @connection.create_channel
-    channel.prefetch = options[:prefetch]
+    channel = build_channel(options[:prefetch])
 
     # Setup and return Queue
     channel.queue(name, options[:queue_options])
+  end
+
+  # Setup new Channel
+  def build_channel(options)
+    channel          = @connection.create_channel
+    channel.prefetch = options[:prefetch]
+    channel
   end
 
   # Setup new Exchange
@@ -29,7 +35,7 @@ class FrenzyBunnies::QueueFactory
       raise ArgumentError, 'Please pass :name argument to options'
     else
       exchange_opts = symbolize(@exchanges_opts[exchange_name])
-      exchange      = channel.exchange(exchange_name, exchange_opts)
+      channel.exchange(exchange_name, exchange_opts)
     end
   end
 
