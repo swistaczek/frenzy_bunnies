@@ -96,8 +96,8 @@ module FrenzyBunnies::Worker
 
         @subscriptions[i] = @queues[i].subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
           # Prepare setup args for worker class
-          init_args = case method(:new).arity
-                      when 1
+          init_args = case @init_arity
+                      when -1, 1
                         [ { context: context } ]
                       else
                         [ ]
