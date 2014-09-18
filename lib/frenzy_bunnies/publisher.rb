@@ -18,11 +18,13 @@ module FrenzyBunnies
     # publish(data, :routing_key => "resize")
     def publish_to_exchange(msg, exchange_name, routing = {})
       if @connection.open?
-        @channel_pool.with do |publishing_channel|
+        # @channel_pool.with do |publishing_channel|
+          publishing_channel = @connection.create_channel
           # Synchronization required due to creating channel number in safe manner
           exchange = publishing_channel.exchange(exchange_name, symbolize(@opts[:exchanges][exchange_name]))
           exchange.publish(msg, routing_key: routing[:routing_key], properties: { persistent: @persistent })
-        end
+          publishing_channel.close
+        # end
       else
         raise Exception, 'Could not publish message, connection is closed!'
       end
