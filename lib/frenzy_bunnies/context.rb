@@ -63,6 +63,7 @@ class FrenzyBunnies::Context
   # Stop running context
   def stop
     @klasses.each {|klass| klass.stop }
+    @queue_publisher.shutdown_connection_pool!
     stop_web_interface
   end
 
@@ -83,4 +84,3 @@ class FrenzyBunnies::Context
   end
 
 end
-

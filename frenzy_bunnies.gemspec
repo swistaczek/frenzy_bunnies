@@ -20,6 +20,7 @@ Gem::Specification.new do |gem|
   gem.add_runtime_dependency 'sinatra'
   gem.add_runtime_dependency 'atomic'
   gem.add_runtime_dependency 'json'
+  gem.add_runtime_dependency 'connection_pool'
 
   gem.add_development_dependency 'guard-coffeescript'
   gem.add_development_dependency 'rr'

@@ -1,4 +1,6 @@
 # encoding: utf-8
+require 'connection_pool'
+
 module FrenzyBunnies
   class Publisher
     include Helpers::Utils
@@ -8,18 +10,27 @@ module FrenzyBunnies
       @opts       = opts
       @persistent = @opts[:message_persistent]
 
-      # TODO: Enchance performance, single channel could be a bottle neck, mabey setup pool?
-      @publishing_channel = @connection.create_channel
+      @channel_pool = ConnectionPool.new(size: 50, timeout: 5) do
+        @connection.create_channel
+      end
     end
 
     # publish(data, :routing_key => "resize")
     def publish_to_exchange(msg, exchange_name, routing = {})
       if @connection.open?
-        # Synchronization required due to creating channel number in safe manner
-        exchange = @publishing_channel.exchange(exchange_name, symbolize(@opts[:exchanges][exchange_name]))
-        exchange.publish(msg, routing_key: routing[:routing_key], properties: { persistent: @persistent })
+        @channel_pool.with do |publishing_channel|
+          # Synchronization required due to creating channel number in safe manner
+          exchange = publishing_channel.exchange(exchange_name, symbolize(@opts[:exchanges][exchange_name]))
+          exchange.publish(msg, routing_key: routing[:routing_key], properties: { persistent: @persistent })
+        end
       else
         raise Exception, 'Could not publish message, connection is closed!'
+      end
+    end
+
+    def shutdown_connection_pool!
+      @channel_pool.shutdown do |connection|
+        connection.close
       end
     end
 
