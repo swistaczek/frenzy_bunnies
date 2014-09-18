@@ -24,7 +24,7 @@ module FrenzyBunnies
           exchange = publishing_channel.exchange(exchange_name, symbolize(@opts[:exchanges][exchange_name]))
           exchange.publish(msg, routing_key: routing[:routing_key], properties: { persistent: @persistent })
           # publishing_channel.close
-          sleep 0.03
+          sleep 0.05
         end
       else
         raise Exception, 'Could not publish message, connection is closed!'
