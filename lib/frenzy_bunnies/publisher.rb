@@ -21,7 +21,8 @@ module FrenzyBunnies
         # @channel_pool.with do |channel|
           channel = @connection.create_channel
           # Synchronization required due to creating channel number in safe manner
-          exchange = channel.exchange(exchange_name, symbolize(@opts[:exchanges][exchange_name]))
+          # exchange = channel.exchange(exchange_name, symbolize(@opts[:exchanges][exchange_name]))
+          exchange = MarchHare::Exchange.new(channel, exchange_name, symbolize(@opts[:exchanges][exchange_name]))
           exchange.publish(msg, routing_key: routing[:routing_key], properties: { persistent: @persistent })
           channel.close
         # end
