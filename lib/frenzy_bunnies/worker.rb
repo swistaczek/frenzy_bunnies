@@ -70,6 +70,7 @@ module FrenzyBunnies::Worker
       @queues   = []
       @subscriptions = []
       @init_arity    = allocate.method(:initialize).arity
+      @channels_wkrs = []
 
       queue_name = "#{@queue_name}_#{context.env}"
 
@@ -90,28 +91,30 @@ module FrenzyBunnies::Worker
                                                   :durable,
                                                   :prefetch)
 
+      # Prepare setup args for worker class
+      init_args = case @init_arity
+                  when -1, 1
+                    [ { context: context } ]
+                  else
+                    [ ]
+                  end
+
       # Create many channels with queues bindings
       @queue_opts[:channels_count].times do |i|
+        # Setup new worker class instance
+        # IDEA: Think about caching working class instance, may be dangerous
+        begin
+          @channels_wkrs[i] = new(*init_args)
+        rescue => e
+          error "Error while initializing worker #{@queue_name} with args #{init_args.inspect}", e.inspect
+          raise e
+        end
+
         # Create new channel and queue
         @queues[i] = context.queue_factory.build_queue(queue_name, factory_options)
 
         @subscriptions[i] = @queues[i].subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
-          # Prepare setup args for worker class
-          init_args = case @init_arity
-                      when -1, 1
-                        [ { context: context } ]
-                      else
-                        [ ]
-                      end
-
-          # Setup new worker class instance
-          # IDEA: Think about caching working class instance, may be dangerous
-          begin
-            wkr = new(*init_args)
-          rescue => e
-            error "Error while initializing worker #{@queue_name} with args #{init_args.inspect}", e.inspect
-            raise e
-          end
+          wkr = @channels_wkrs[i]
 
           begin
             Timeout::timeout(@queue_opts[:timeout_job_after]) do
