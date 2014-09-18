@@ -6,22 +6,22 @@ module FrenzyBunnies::Worker
 
   # Initialize with context
   def initialize(opts = {})
-    @context = opts[:context]
+    @publisher = opts[:publisher]
   end
 
-  # Return current worker context if present
-  def context
-    if defined?(@context)
-      @context
+  # Return publisher context if present
+  def publisher
+    if defined?(@publisher)
+      @publisher
     else
-      raise Exception, "Context not defined. Please supply #initialize constructor with 1 argument (Hash)!"
+      raise Exception, "Publisher not defined. Please supply #initialize constructor with 1 argument (Hash)!"
     end
   end
 
   # Publish message to given exchange, simple proxy to FrenzyBunnies::Publisher
   def publish_msg_to_exchange(*args)
-    if @context
-      @context.queue_publisher.publish_to_exchange(*args)
+    if @publisher
+      @publisher.publish_to_exchange(*args)
     else
       raise Exception, "Could not find active context, call #configure first!"
     end
@@ -94,7 +94,7 @@ module FrenzyBunnies::Worker
       # Prepare setup args for worker class
       init_args = case @init_arity
                   when -1, 1
-                    [ { context: context } ]
+                    [ { publisher: context.queue_publisher } ]
                   else
                     [ ]
                   end
