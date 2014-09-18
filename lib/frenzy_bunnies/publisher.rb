@@ -10,7 +10,7 @@ module FrenzyBunnies
       @opts       = opts
       @persistent = @opts[:message_persistent]
 
-      @channel_pool = ConnectionPool.new(size: 50, timeout: 1) do
+      @channel_pool = ConnectionPool.new(size: 100, timeout: 0.1) do
         @connection.create_channel
       end
     end
