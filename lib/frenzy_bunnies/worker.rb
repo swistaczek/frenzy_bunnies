@@ -137,8 +137,8 @@ module FrenzyBunnies::Worker
             incr! :failed
             last_error = ex.backtrace[0..3].join("\n")
             error "[ERROR] #{$!} (#{last_error})", msg
-          ensure
-            wkr = nil # clear existing worker instance
+          # ensure
+          #   wkr = nil # clear existing worker instance
           end
         end
       end
