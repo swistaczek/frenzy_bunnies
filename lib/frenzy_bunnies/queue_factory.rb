@@ -8,20 +8,44 @@ class FrenzyBunnies::QueueFactory
     @exchanges_opts = exchanges_opts
   end
 
+  # Build new queue that is binded to given shared exchange
+  # to keep messages distributed
   def build_queue(name, options = {})
     options = set_defaults(options)
     validate_options(options)
 
-    channel          = @connection.create_channel
-    channel.prefetch = options[:prefetch]
+    # Setup new Channel
+    channel  = build_channel(options[:prefetch])
 
-    exchange_name = options[:exchange_options][:name]
-    exchange_opts = symbolize(@exchanges_opts[exchange_name])
-    exchange = channel.exchange(exchange_name, exchange_opts)
+    # Setup Exchange
+    exchange = build_exchange(channel, options[:exchange_options])
 
-    queue = channel.queue(name, options[:queue_options])
+    # Setup Queue
+    queue    = channel.queue(name, options[:queue_options])
+
+    # Bind Queue to exchange
     queue.bind(exchange, options[:bind_options])
+
+    # Return Queue
     queue
+  end
+
+  # Setup new Channel
+  def build_channel(prefetch)
+    channel          = @connection.create_channel
+    channel.prefetch = prefetch
+    channel
+  end
+
+  # Setup new Exchange
+  def build_exchange(channel, options)
+    exchange_name = options[:name]
+    if exchange_name.nil? || exchange_name.size <= 0
+      raise ArgumentError, 'Please pass :name argument to options'
+    else
+      exchange_opts = symbolize(@exchanges_opts[exchange_name])
+      channel.exchange(exchange_name, exchange_opts)
+    end
   end
 
   protected

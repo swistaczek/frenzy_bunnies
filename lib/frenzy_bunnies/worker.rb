@@ -1,16 +1,43 @@
+# encoding: utf-8
 require 'atomic'
 
 module FrenzyBunnies::Worker
   import java.util.concurrent.Executors
 
+  # Initialize with context
+  def initialize(opts = {})
+    @publisher = opts[:publisher]
+  end
+
+  # Return publisher context if present
+  def publisher
+    if defined?(@publisher)
+      @publisher
+    else
+      raise Exception, "Publisher not defined. Please supply #initialize constructor with 1 argument (Hash)!"
+    end
+  end
+
+  # Publish message to given exchange, simple proxy to FrenzyBunnies::Publisher
+  def publish_msg_to_exchange(*args)
+    if @publisher
+      @publisher.publish_to_exchange(*args)
+    else
+      raise Exception, "Could not find active context, call #configure first!"
+    end
+  end
+
+  # Stub for setting message as succesffuly processed
   def ack!
     true
-  end  
+  end
 
+  # Mock for proper method
   def work
     raise Exception, "Please overwrite this method!"
   end
 
+  # Schedule message delivery
   def run!(header, message)
     case method(:work).arity
     when 2
@@ -22,6 +49,7 @@ module FrenzyBunnies::Worker
     end
   end
 
+  # Inject ClassMethods module
   def self.included(base)
     base.extend ClassMethods
   end
@@ -33,12 +61,16 @@ module FrenzyBunnies::Worker
       @queue_opts = opts
     end
 
+    # Spawn new worker based on existing context
     def start(context)
       @jobs_stats = { failed: Atomic.new(0), passed: Atomic.new(0) }
       @working_since = Time.now
 
       @logger   = context.logger
-      @channels = []
+      @queues   = []
+      @subscriptions = []
+      @init_arity    = allocate.method(:initialize).arity
+      @channels_wkrs = []
 
       queue_name = "#{@queue_name}_#{context.env}"
 
@@ -53,22 +85,36 @@ module FrenzyBunnies::Worker
         @thread_pool = Executors.new_cached_thread_pool
       end
 
-      factory_options = filter_hash(@queue_opts, :exchange_options,
-                                                 :queue_options,
-                                                 :bind_options,
-                                                 :durable,
-                                                 :prefetch)
+      factory_options  = filter_hash(@queue_opts, :queue_options,
+                                                  :exchange_options,
+                                                  :bind_options,
+                                                  :durable,
+                                                  :prefetch)
 
+      # Prepare setup args for worker class
+      init_args = case @init_arity
+                  when -1, 1
+                    [ { publisher: context.queue_publisher } ]
+                  else
+                    [ ]
+                  end
+
+      # Create many channels with queues bindings
       @queue_opts[:channels_count].times do |i|
-        q = context.queue_factory.build_queue(queue_name, factory_options)
+        # Setup new worker class instance
+        # IDEA: Think about caching working class instance, may be dangerous
+        begin
+          @channels_wkrs[i] = new(*init_args)
+        rescue => e
+          error "Error while initializing worker #{@queue_name} with args #{init_args.inspect}", e.inspect
+          raise e
+        end
 
-        @channels[i] = q.subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
-          begin
-            wkr = new
-          rescue => e
-            error "Error while initializing worker #{@queue_name}", e.inspect
-            raise e
-          end
+        # Create new channel and queue
+        @queues[i] = context.queue_factory.build_queue(queue_name, factory_options)
+
+        @subscriptions[i] = @queues[i].subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
+          wkr = @channels_wkrs[i]
 
           begin
             Timeout::timeout(@queue_opts[:timeout_job_after]) do
@@ -91,6 +137,8 @@ module FrenzyBunnies::Worker
             incr! :failed
             last_error = ex.backtrace[0..3].join("\n")
             error "[ERROR] #{$!} (#{last_error})", msg
+          # ensure
+          #   wkr = nil # clear existing worker instance
           end
         end
       end
@@ -100,6 +148,7 @@ module FrenzyBunnies::Worker
       say "spawned #{@queue_opts[:channels_count]} channels, workers up."
     end
 
+    # Shutdown pool
     def stop
       say "stopping"
       @thread_pool.shutdown_now
@@ -108,18 +157,22 @@ module FrenzyBunnies::Worker
       say "stopped"
     end
 
+    # Return shared queue opts
     def queue_opts
       @queue_opts
     end
 
+    # Return jobs stats for web interface
     def jobs_stats
       Hash[ @jobs_stats.map{ |k,v| [k, v.value] } ].merge({ since: @working_since.to_i, thread_pool_size: @thread_pool.getPoolSize })
     end
 
+    # Throw tagged note to logs
     def say(text)
       @logger.info "[#{self.name}] #{text}"
     end
 
+    # Throw tagged error to logs
     def error(text, msg)
       @logger.error "[#{self.name}] #{text} <#{msg}>"
     end

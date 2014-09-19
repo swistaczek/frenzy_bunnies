@@ -13,11 +13,11 @@ require 'frenzy_bunnies/publisher'
 
 module FrenzyBunnies
 
-  # TODO: Refactor sharing context
-  #       This could be tricky in multithread env
+  # DEPRECATED: Remove in next version
   def self.publish(msg, exchange_name, routing)
     if @context
-      @context.queue_publisher.publish(msg, exchange_name, routing)
+      # @context.logger.warn "[DEPRECATED] FrenzyBunnies.publish is deprecated! Use #publish_msg_to_exchange in worker instaed."
+      @context.queue_publisher.publish_to_exchange(msg, exchange_name, routing)
     else
       raise Exception, "Could not find active context, call #configure first!"
     end

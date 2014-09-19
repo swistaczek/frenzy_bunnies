@@ -19,22 +19,27 @@ class FrenzyBunnies::Context
 
     @env    = @opts[:env]
     @logger = @opts[:logger] || Logger.new(STDOUT)
-    params  = { host: @opts[:host], heartbeat_interval: @opts[:heartbeat] }
 
-    (params[:username], params[:password] = @opts[:username], @opts[:password]) if @opts[:username] && @opts[:password]
-    (params[:port] = @opts[:port]) if @opts[:port]
+    # Build RabbitMq connection configuration Hash
+    params                               = { host: @opts[:host], heartbeat_interval: @opts[:heartbeat] }
+    params[:port]                        = @opts[:port]                       if @opts[:port]
+    params[:username], params[:password] = @opts[:username], @opts[:password] if (@opts[:username] && @opts[:password])
 
-    params[:executor_factory] = Proc.new { MarchHare::ThreadPools.dynamically_growing }
+    # DEPRECATED: Due to changes in MarchHare definig ExecutorFactory is obsolete
+    # params[:executor_factory] = Proc.new { MarchHare::ThreadPools.dynamically_growing }
 
     @connection = MarchHare.connect(params)
     @connection.add_shutdown_listener(lambda { |cause| @logger.error("Disconnected: #{cause}"); stop;})
 
+    @restart_mutex   = Mutex.new
     @queue_factory   = FrenzyBunnies::QueueFactory.new(@connection, @opts[:exchanges])
-    @queue_publisher = FrenzyBunnies::Publisher.new(@connection, @opts)
+    @queue_publisher = FrenzyBunnies::Publisher.new(self, @connection, @opts)
 
+    # Support external error handlers
     @error_handlers  = @opts[:error_handlers] || []
   end
 
+  # Start given classes in actual context
   def run(*klasses)
     @klasses = []
     klasses.each {|klass| klass.start(self); @klasses << klass}
@@ -42,6 +47,7 @@ class FrenzyBunnies::Context
     run_web_interface unless @opts[:disable_web_stats]
   end
 
+  # Schedule deploy of new web interface
   def run_web_interface
     if @web_interface.nil? || (@web_interface.is_a?(Thread) && !@web_interface.alive?)
       @web_interface = Thread.new do
@@ -55,11 +61,30 @@ class FrenzyBunnies::Context
     end
   end
 
+  # Restart running context
+  def restart
+    unless restart_mutex.locked?
+      @restart_mutex.synchronize do
+        @logger.warn "[Context] Scheduling context restart"
+        running_classes = @klasses.map(&:class)
+        stop
+        run(*running_classes)
+        @logger.warn "[Context] Context successfuly restarted"
+      end
+    else
+      raise Exception, 'Application is restarting right now'
+    end
+  end
+
+  # Stop running context
   def stop
     @klasses.each {|klass| klass.stop }
+    @klasses = [] # restart klasses container
+    @queue_publisher.shutdown_connection_pool!
     stop_web_interface
   end
 
+  # Disable web interface
   def stop_web_interface
     if @web_interface.is_a?(Thread) && @web_interface.alive?
       if @web_interface.kill
@@ -76,4 +101,3 @@ class FrenzyBunnies::Context
   end
 
 end
-
