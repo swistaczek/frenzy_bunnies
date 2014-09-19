@@ -46,8 +46,8 @@ module FrenzyBunnies
     end
 
     def shutdown_connection_pool!
-      @channel_pool.shutdown do |connection|
-        connection.close rescue nil # could not close connection, allready closed
+      @channel_pool.shutdown do |channel|
+        channel.close unless @connection.closed?
       end
     end
 
