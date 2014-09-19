@@ -31,8 +31,9 @@ class FrenzyBunnies::Context
     @connection = MarchHare.connect(params)
     @connection.add_shutdown_listener(lambda { |cause| @logger.error("Disconnected: #{cause}"); stop;})
 
+    @restart_mutex   = Mutex.new
     @queue_factory   = FrenzyBunnies::QueueFactory.new(@connection, @opts[:exchanges])
-    @queue_publisher = FrenzyBunnies::Publisher.new(@connection, @opts)
+    @queue_publisher = FrenzyBunnies::Publisher.new(self, @connection, @opts)
 
     # Support external error handlers
     @error_handlers  = @opts[:error_handlers] || []
@@ -60,9 +61,25 @@ class FrenzyBunnies::Context
     end
   end
 
+  # Restart running context
+  def restart
+    unless restart_mutex.locked?
+      @restart_mutex.synchronize do
+        @logger.warn "[Context] Scheduling context restart"
+        running_classes = @klasses.map(&:class)
+        stop
+        run(*running_classes)
+        @logger.warn "[Context] Context successfuly restarted"
+      end
+    else
+      raise Exception, 'Application is restarting right now'
+    end
+  end
+
   # Stop running context
   def stop
     @klasses.each {|klass| klass.stop }
+    @klasses = [] # restart klasses container
     @queue_publisher.shutdown_connection_pool!
     stop_web_interface
   end

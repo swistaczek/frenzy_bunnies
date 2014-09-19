@@ -5,14 +5,13 @@ module FrenzyBunnies
   class Publisher
     include Helpers::Utils
 
-    def initialize(connection, opts)
+    def initialize(context, connection, opts)
+      @context    = context
       @connection = connection
       @opts       = opts
       @persistent = @opts[:message_persistent]
 
-      @channel_pool = ConnectionPool.new(size: 100, timeout: 0.1) do
-        @connection.create_channel
-      end
+      initialize_connection_pool!
     end
 
     # publish(data, :routing_key => "resize")
@@ -27,13 +26,28 @@ module FrenzyBunnies
           # channel.close
         end
       else
-        raise Exception, 'Could not publish message, connection is closed!'
+        raise MarchHare::ConnectionRefused, 'Could not publish message, connection is closed!'
+      end
+    rescue MarchHare::ConnectionRefused
+      initialize_connection_pool!
+      retry
+    end
+
+    def initialize_connection_pool!
+      if @connection.open?
+        @channel_pool = ConnectionPool.new(size: 100, timeout: 0.1) do
+          @connection.create_channel
+        end
+      else
+        # TODO: Might cause infinitee loop
+        @context.restart
+        initialize_connection_pool!
       end
     end
 
     def shutdown_connection_pool!
       @channel_pool.shutdown do |connection|
-        connection.close
+        connection.close rescue nil # could not close connection, allready closed
       end
     end
 
