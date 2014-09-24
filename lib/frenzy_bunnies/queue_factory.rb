@@ -25,8 +25,7 @@ class FrenzyBunnies::QueueFactory
 
       options[:queue_options] ||= {}
       options[:queue_options][:arguments] ||= {}
-      options[:queue_options][:arguments].merge!({ 'x-dead-letter-exchange'    => queue_dlq.name,
-                                                   'x-dead-letter-routing-key' => (options[:dle_routing] || name) })
+      options[:queue_options][:arguments].merge!({ 'x-dead-letter-exchange' => queue_dlq.name })
     end
 
     queue = channel.queue(name, options[:queue_options])
