@@ -139,7 +139,7 @@ module FrenzyBunnies::Worker
               # TODO: And send to DLQ
               # TODO: Support multiple retries
               h.reject
-              error "[REJECTED] [ERROR] #{$!} (#{last_error})", msg
+              error "[REJECTED] [ERROR] #{$!}", msg
             else
               # Unless redelivered retry once
               h.reject(requeue: true)
