@@ -73,6 +73,7 @@ module FrenzyBunnies::Worker
       @channels_wkrs = []
 
       queue_name = "#{@queue_name}_#{context.env}"
+      dle_name   = "dead_#{context.env}"
 
       @queue_opts[:channels_count]    ||= 1
       @queue_opts[:prefetch]          ||= 10
@@ -111,7 +112,7 @@ module FrenzyBunnies::Worker
         end
 
         # Create new channel and queue
-        @queues[i] = context.queue_factory.build_queue(queue_name, factory_options)
+        @queues[i] = context.queue_factory.build_queue(queue_name, factory_options.merge(dle: dle_name, dle_routing: @queue_name))
 
         @subscriptions[i] = @queues[i].subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
           wkr = @channels_wkrs[i]
