@@ -112,7 +112,7 @@ module FrenzyBunnies::Worker
         end
 
         # Create new channel and queue
-        @queues[i] = context.queue_factory.build_queue(queue_name, factory_options.merge(dle: dle_name, dle_routing: @queue_name))
+        @queues[i] = context.queue_factory.build_queue(queue_name, factory_options.merge(dle: dle_name, dle_routing: @queue_name.split('.').last))
 
         @subscriptions[i] = @queues[i].subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
           wkr = @channels_wkrs[i]
