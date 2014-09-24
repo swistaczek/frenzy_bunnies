@@ -132,11 +132,22 @@ module FrenzyBunnies::Worker
             incr! :failed
             error "[TIMEOUT] #{@queue_opts[:timeout_job_after]}s", msg
           rescue Exception => ex
-            h.reject(requeue: true)
+            last_error = ex.backtrace[0..3].join("\n")
+
+            # If redelivered than skip
+            if h.redelivered?
+              # TODO: And send to DLQ
+              # TODO: Support multiple retries
+              h.reject
+              error "[REJECTED] [ERROR] #{$!} (#{last_error})", msg
+            else
+              # Unless redelivered retry once
+              h.reject(requeue: true)
+              error "[REDELIVER] [ERROR] #{$!}", msg
+            end
+
             context.handle_exception(ex, msg)
             incr! :failed
-            last_error = ex.backtrace[0..3].join("\n")
-            error "[REDELIVER] [ERROR] #{$!} (#{last_error})", msg
           # ensure
           #   wkr = nil # clear existing worker instance
           end
