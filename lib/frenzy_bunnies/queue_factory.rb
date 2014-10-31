@@ -21,15 +21,17 @@ class FrenzyBunnies::QueueFactory
 
 
     if options[:dle]
-      queue_dlq = channel.direct(options[:dle] || "dead_msgs_exchange")
+      dle = channel.direct(options[:dle])
 
       options[:queue_options] ||= {}
       options[:queue_options][:arguments] ||= {}
-      options[:queue_options][:arguments].merge!({ 'x-dead-letter-exchange' => queue_dlq.name })
+      options[:queue_options][:arguments].merge!({ 'x-dead-letter-exchange' => options[:dle] })
     end
 
     queue = channel.queue(name, options[:queue_options])
     queue.bind(exchange, options[:bind_options])
+    routing_key = options[:bind_options][:routing_key]
+    dlq = channel.queue("dlq_#{routing_key}").bind(dle, routing_key: routing_key)
     queue
   end
 
