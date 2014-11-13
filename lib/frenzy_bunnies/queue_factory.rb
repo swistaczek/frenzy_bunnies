@@ -19,30 +19,43 @@ class FrenzyBunnies::QueueFactory
     exchange_opts = symbolize(@exchanges_opts[exchange_name])
     exchange = channel.exchange(exchange_name, exchange_opts)
 
-
-    if options[:dle]
-      dle = channel.direct(options[:dle])
-
-      options[:queue_options] ||= {}
-      options[:queue_options][:arguments] ||= {}
-      options[:queue_options][:arguments].merge!({ 'x-dead-letter-exchange' => options[:dle] })
-    end
+    set_dlx(name, channel, options)
 
     queue = channel.queue(name, options[:queue_options])
     queue.bind(exchange, options[:bind_options])
-    routing_key = options[:bind_options][:routing_key]
-    dlq = channel.queue("dlq_#{routing_key}").bind(dle, routing_key: routing_key)
+
     queue
   end
 
   protected
 
+  def set_dlx(name, channel, options)
+     if options[:dlx]
+      dlx = channel.direct(options[:dlx][:name])
+
+      options[:queue_options] ||= {}
+      options[:queue_options][:arguments] ||= {}
+      options[:queue_options][:arguments].merge!({ 'x-dead-letter-exchange' => dlx.name, 'x-dead-letter-routing-key' => name })
+
+      routing_key = options[:bind_options][:routing_key]
+      dlq = channel.queue("dlq_#{name}", :arguments => { 'x-max-length'  => options[:dlx][:max_length] })
+      dlq.bind(dlx, routing_key: name)
+    end
+  end
+
   def set_defaults(options)
-    options                    ||= {}
-    options[:exchange_options] ||= {}
-    options[:queue_options]    ||= {}
-    options[:bind_options]     ||= {}
-    options[:prefetch]         ||= DEFAULT_PREFETCH_COUNT
+    options                     ||= {}
+    options[:exchange_options]  ||= {}
+    options[:queue_options]     ||= {}
+    options[:bind_options]      ||= {}
+    options[:prefetch]          ||= DEFAULT_PREFETCH_COUNT
+
+    if options[:dlx]
+      options[:dlx].symbolize_keys!
+      options[:dlx][:max_length]  ||= 100
+      options[:dlx][:name]        ||= 'dead_msgs_exchange'
+    end
+
 
     # options[:exchange_options][:type]    ||= :direct
     # options[:exchange_options][:durable] ||= false
