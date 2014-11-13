@@ -1,6 +1,5 @@
 # encoding: utf-8
 require 'atomic'
-require 'pry-remote'
 
 module FrenzyBunnies::Worker
   import java.util.concurrent.Executors
@@ -143,9 +142,6 @@ module FrenzyBunnies::Worker
             if h.redelivered?
               # TODO: And send to DLQ
               # TODO: Support multiple retries
-              # binding.pry_remote
-              p "HEADER - #{h.inspect}"
-              # p "MSG - #{msg}"
               h.reject
               error "[REJECTED] [ERROR] #{$!}", msg
             else
