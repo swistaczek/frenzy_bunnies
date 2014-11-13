@@ -71,14 +71,16 @@ module FrenzyBunnies::Worker
       @subscriptions = []
       @init_arity    = allocate.method(:initialize).arity
       @channels_wkrs = []
-
       queue_name = "#{@queue_name}_#{context.env}"
-      dle_name   = "dead_#{context.env}"
 
       @queue_opts[:channels_count]    ||= 1
       @queue_opts[:prefetch]          ||= 10
       @queue_opts[:durable]           ||= false
       @queue_opts[:timeout_job_after] ||= 5
+      @queue_opts[:dlx]               ||= context.opts[:dlx]
+
+
+
 
       if @queue_opts[:threads]
         @thread_pool = Executors.new_fixed_thread_pool(@queue_opts[:threads])
@@ -90,7 +92,8 @@ module FrenzyBunnies::Worker
                                                   :exchange_options,
                                                   :bind_options,
                                                   :durable,
-                                                  :prefetch)
+                                                  :prefetch,
+                                                  :dlx)
 
       # Prepare setup args for worker class
       init_args = case @init_arity
@@ -112,7 +115,7 @@ module FrenzyBunnies::Worker
         end
 
         # Create new channel and queue
-        @queues[i] = context.queue_factory.build_queue(queue_name, factory_options.merge(dle: dle_name))
+        @queues[i] = context.queue_factory.build_queue(queue_name, factory_options)
 
         @subscriptions[i] = @queues[i].subscribe(ack: true, blocking: false, executor: @thread_pool) do |h, msg|
           wkr = @channels_wkrs[i]
